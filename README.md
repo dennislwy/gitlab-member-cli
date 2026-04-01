@@ -109,7 +109,7 @@ cd gitlab-member-cli
 | `-MemberId`         | Conditional*  | User ID of the member to manage                                     | -                           |
 | `-ExpiryDate`       | Conditional** | Expiry date in YYYY-MM-DD format                                    | -                           |
 | `-ServerUrl`        | No            | GitLab API URL                                                      | `https://gitlab.com/api/v4` |
-| `-IncludeSubgroups` | No            | Include projects from subgroups when scanning user memberships      | `true`                      |
+| `-IgnoreSubgroups`  | No            | Exclude projects from nested subgroups when scanning memberships    | `false`                     |
 | `-DryRun`           | No            | Preview what would be changed without making any API updates        | `false`                     |
 
 † Exactly one of `-Group` or `-Project` must be specified.  
@@ -200,7 +200,7 @@ The script recognizes and preserves the following GitLab access levels:
 
 ### Issue: Slow performance with many projects
 - This is expected behavior - the script scans each project individually
-- Consider using `-IncludeSubgroups:$false` to limit scope
+- Consider using `-IgnoreSubgroups` to limit scope
 - PowerShell 7+ uses parallel processing for significantly faster scanning
 
 ### Project Structure

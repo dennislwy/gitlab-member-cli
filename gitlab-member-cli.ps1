@@ -32,23 +32,26 @@
 .PARAMETER ExpiryDate
     Expiry date in YYYY-MM-DD format (required for 'set-expiry' operation)
 
+.PARAMETER IgnoreSubgroups
+    Exclude projects from nested subgroups when scanning user memberships. By default, subgroups are included.
+
 .PARAMETER IncludeSubgroups
-    Include projects from all subgroups when scanning user memberships (default: true)
+    Deprecated. Use -IgnoreSubgroups instead.
 
 .PARAMETER DryRun
     Preview what would be changed without making any API updates. Skips confirmation prompt.
 
 .EXAMPLE
-    .\gitlab-member-cli.ps1 -PrivateToken "glpat-xxx" -Operation "list" -Group "acme/product-a" -IncludeSubgroups:$true
+    .\gitlab-member-cli.ps1 -PrivateToken "glpat-xxx" -Operation "list" -Group "acme/product-a"
 
 .EXAMPLE
     .\gitlab-member-cli.ps1 -PrivateToken "glpat-xxx" -Operation "list" -Project "acme/product-a/auth-service"
 
 .EXAMPLE
-    .\gitlab-member-cli.ps1 -PrivateToken "glpat-xxx" -Operation "list" -Group "acme" -MemberUsername "username" -IncludeSubgroups:$true
+    .\gitlab-member-cli.ps1 -PrivateToken "glpat-xxx" -Operation "list" -Group "acme" -MemberUsername "username"
 
 .EXAMPLE
-    .\gitlab-member-cli.ps1 -PrivateToken "glpat-xxx" -Operation "set-expiry" -Group "acme" -MemberId 13624798 -ExpiryDate "2026-03-31" -IncludeSubgroups:$true
+    .\gitlab-member-cli.ps1 -PrivateToken "glpat-xxx" -Operation "set-expiry" -Group "acme" -MemberId 13624798 -ExpiryDate "2026-03-31"
 
 .EXAMPLE
     .\gitlab-member-cli.ps1 -PrivateToken "glpat-xxx" -Operation "set-expiry" -Project "acme/product-a/auth-service" -MemberId 13624798 -ExpiryDate "2026-04-15"
@@ -63,7 +66,10 @@
     .\gitlab-member-cli.ps1 -PrivateToken "glpat-xxx" -Operation "set-expiry" -Project "acme/product-a/auth-service" -MemberUsername "username" -ExpiryDate "2026-04-30" -DryRun
 
 .EXAMPLE
-    .\gitlab-member-cli.ps1 -PrivateToken "glpat-xxx" -Operation "remove" -Group "acme" -MemberUsername "username" -IncludeSubgroups:$true
+    .\gitlab-member-cli.ps1 -PrivateToken "glpat-xxx" -Operation "remove" -Group "acme" -MemberUsername "username"
+
+.EXAMPLE
+    .\gitlab-member-cli.ps1 -PrivateToken "glpat-xxx" -Operation "remove" -Group "acme" -MemberUsername "username" -IgnoreSubgroups
 
 .EXAMPLE
     .\gitlab-member-cli.ps1 -PrivateToken "glpat-xxx" -Operation "remove" -Group "acme" -MemberId 13624798 -DryRun
@@ -102,8 +108,11 @@ param(
     [ValidateNotNullOrEmpty()]
     [string]$ServerUrl = "https://gitlab.com/api/v4",
 
-    [Parameter(Mandatory = $false)]
-    [switch]$IncludeSubgroups = $true,
+    [Parameter(Mandatory = $false, HelpMessage = "Exclude projects from nested subgroups (default: subgroups are included)")]
+    [switch]$IgnoreSubgroups,
+
+    [Parameter(Mandatory = $false, HelpMessage = "Deprecated: use -IgnoreSubgroups instead")]
+    [System.Nullable[bool]]$IncludeSubgroups,
 
     [Parameter(Mandatory = $false, HelpMessage = "Preview changes without making any updates")]
     [switch]$DryRun
@@ -111,6 +120,14 @@ param(
 
 # Trim trailing slashes from ServerUrl
 $ServerUrl = $ServerUrl.TrimEnd('/')
+
+# Handle deprecated -IncludeSubgroups parameter
+if ($null -ne $IncludeSubgroups) {
+    Write-Warning "-IncludeSubgroups is deprecated. Use -IgnoreSubgroups instead."
+    if (-not $IncludeSubgroups) {
+        $IgnoreSubgroups = $true
+    }
+}
 
 # Color scheme
 $script:ColorScheme = @{
@@ -207,7 +224,7 @@ function Get-GitLabProjects {
     param(
         [string]$Group,
         [string]$ServerUrl,
-        [bool]$IncludeSubgroups,
+        [bool]$IgnoreSubgroups,
         [hashtable]$Headers
     )
 
@@ -221,7 +238,7 @@ function Get-GitLabProjects {
     do {
         try {
             $uri = "$ServerUrl/groups/$encodedGroup/projects?per_page=$perPage&page=$page"
-            if ($IncludeSubgroups) {
+            if (-not $IgnoreSubgroups) {
                 $uri = $uri + "&include_subgroups=true"
             }
 
@@ -1105,7 +1122,7 @@ try {
     }
 
     # Fetch all projects in group
-    $projects = Get-GitLabProjects -Group $Group -ServerUrl $ServerUrl -IncludeSubgroups $IncludeSubgroups -Headers $headers
+    $projects = Get-GitLabProjects -Group $Group -ServerUrl $ServerUrl -IgnoreSubgroups $IgnoreSubgroups -Headers $headers
     if (-not $projects) { exit 1 }
 
     # Scan memberships

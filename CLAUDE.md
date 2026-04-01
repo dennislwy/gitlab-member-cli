@@ -63,7 +63,7 @@ The main script is `gitlab-member-cli.ps1`. It requires PowerShell and accepts t
 - `-MemberUsername` or `-MemberId`: Identify the member (required for set-expiry and remove; optional for list with -Group)
 - `-ExpiryDate`: YYYY-MM-DD format (required for set-expiry)
 - `-ServerUrl`: GitLab API URL (defaults to "https://gitlab.com/api/v4")
-- `-IncludeSubgroups`: Include subgroup projects when scanning user memberships (default: true)
+- `-IgnoreSubgroups`: Exclude nested subgroup projects when scanning user memberships (default: subgroups are included)
 - `-DryRun`: Preview what would be changed without making any API updates (set-expiry and remove)
 
 ## Architecture
