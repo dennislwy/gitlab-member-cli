@@ -340,10 +340,31 @@ function Get-MembershipDetails {
         $memberships = $Projects | ForEach-Object -ThrottleLimit 20 -Parallel {
             $project = $_
 
-            try {
-                $uri = "$using:ServerUrl/projects/$($project.id)/members/all/$using:UserId"
-                $member = Invoke-RestMethod -Uri $uri -Headers $using:Headers -ErrorAction Stop
+            $uri = "$using:ServerUrl/projects/$($project.id)/members/all/$using:UserId"
+            $member = $null
+            $maxRetries = 3
+            for ($attempt = 1; $attempt -le $maxRetries; $attempt++) {
+                try {
+                    $member = Invoke-RestMethod -Uri $uri -Headers $using:Headers -ErrorAction Stop
+                    break
+                }
+                catch {
+                    $statusCode = $null
+                    if ($_.Exception.Response) {
+                        $statusCode = [int]$_.Exception.Response.StatusCode
+                    }
+                    if ($statusCode -eq 404) {
+                        # Not a member — expected, stop retrying
+                        break
+                    }
+                    if ($attempt -lt $maxRetries) {
+                        Start-Sleep -Milliseconds (500 * $attempt)
+                    }
+                    # else: transient error after all retries — treat as no result
+                }
+            }
 
+            if ($member) {
                 $accessLevelName = switch ($member.access_level) {
                     10 { "Guest" }
                     20 { "Reporter" }
@@ -363,9 +384,6 @@ function Get-MembershipDetails {
                     AccessLevelName = $accessLevelName
                     ExpiresAt       = $expiryValue
                 }
-            }
-            catch {
-                # Not a member, return nothing
             }
         }
 
@@ -388,10 +406,31 @@ function Get-MembershipDetails {
             $jobs += Start-Job -ScriptBlock {
                 param($projectId, $projectPath, $projectName, $userId, $serverUrl, $headers)
 
-                try {
-                    $uri = "$serverUrl/projects/$projectId/members/all/$userId"
-                    $member = Invoke-RestMethod -Uri $uri -Headers $headers -ErrorAction Stop
+                $uri = "$serverUrl/projects/$projectId/members/all/$userId"
+                $member = $null
+                $maxRetries = 3
+                for ($attempt = 1; $attempt -le $maxRetries; $attempt++) {
+                    try {
+                        $member = Invoke-RestMethod -Uri $uri -Headers $headers -ErrorAction Stop
+                        break
+                    }
+                    catch {
+                        $statusCode = $null
+                        if ($_.Exception.Response) {
+                            $statusCode = [int]$_.Exception.Response.StatusCode
+                        }
+                        if ($statusCode -eq 404) {
+                            # Not a member — expected, stop retrying
+                            break
+                        }
+                        if ($attempt -lt $maxRetries) {
+                            Start-Sleep -Milliseconds (500 * $attempt)
+                        }
+                        # else: transient error after all retries — treat as no result
+                    }
+                }
 
+                if ($member) {
                     $accessLevelName = switch ($member.access_level) {
                         10 { "Guest" }
                         20 { "Reporter" }
@@ -411,9 +450,6 @@ function Get-MembershipDetails {
                         AccessLevelName = $accessLevelName
                         ExpiresAt       = $expiryValue
                     }
-                }
-                catch {
-                    # Not a member, return nothing
                 }
             } -ArgumentList $project.id, $project.path_with_namespace, $project.name, $UserId, $ServerUrl, $Headers
 
@@ -1194,11 +1230,39 @@ try {
             $groupMemberships = Get-GroupMembershipDetails -Groups $allGroupsToScan -UserId $userId -Username $username -ServerUrl $ServerUrl -Headers $headers
 
             if ($groupMemberships.Count -gt 0) {
-                # Remove at group level — this cascades and revokes inherited project access.
-                if ($memberships.Count -gt 0) {
-                    Write-Host "`nNote: $($memberships.Count) project memberships are inherited from group access and will be revoked automatically." -ForegroundColor $ColorScheme.Dim
+                # Find project memberships NOT covered by the group-level removals.
+                # A project is "covered" if its path starts with one of the removed group paths.
+                $removedGroupPaths = $groupMemberships | ForEach-Object { $_.GroupPath }
+                $orphanMemberships = @($memberships | Where-Object {
+                    $projectPath = $_.ProjectPath
+                    -not ($removedGroupPaths | Where-Object { $projectPath.StartsWith($_ + "/") })
+                })
+
+                if ($DryRun) {
+                    # In dry-run, show affected project memberships (consistent with list output)
+                    # so the user can verify the count matches before running without -DryRun.
+                    $groupPathList = $removedGroupPaths -join ', '
+                    Remove-MemberFromGroup -Memberships $memberships -UserId $userId -Username $username -ServerUrl $ServerUrl -Headers $headers -DryRun:$DryRun
+                    Write-Host "`nNote: Access will be revoked via group-level removal from: $groupPathList" -ForegroundColor $ColorScheme.Dim
+                    Write-Host "      Removing the group membership cascades and revokes all inherited project access." -ForegroundColor $ColorScheme.Dim
+                    if ($orphanMemberships.Count -gt 0) {
+                        Write-Host "      $($orphanMemberships.Count) additional direct project membership(s) will be removed individually." -ForegroundColor $ColorScheme.Dim
+                    }
                 }
-                Remove-MemberFromGroups -GroupMemberships $groupMemberships -UserId $userId -Username $username -ServerUrl $ServerUrl -Headers $headers -DryRun:$DryRun
+                else {
+                    # Remove at group level — this cascades and revokes inherited project access.
+                    $inheritedCount = $memberships.Count - $orphanMemberships.Count
+                    if ($inheritedCount -gt 0) {
+                        Write-Host "`nNote: $inheritedCount project membership(s) are inherited from group access and will be revoked automatically." -ForegroundColor $ColorScheme.Dim
+                    }
+                    Remove-MemberFromGroups -GroupMemberships $groupMemberships -UserId $userId -Username $username -ServerUrl $ServerUrl -Headers $headers -DryRun:$DryRun
+
+                    # Also remove any direct project memberships not covered by the group removals.
+                    if ($orphanMemberships.Count -gt 0) {
+                        Write-Host "`nRemoving $($orphanMemberships.Count) additional direct project membership(s) not covered by group removal..." -ForegroundColor $ColorScheme.Info
+                        Remove-MemberFromGroup -Memberships $orphanMemberships -UserId $userId -Username $username -ServerUrl $ServerUrl -Headers $headers -DryRun:$DryRun
+                    }
+                }
             }
             else {
                 # No group memberships — fall back to project-level removal.
