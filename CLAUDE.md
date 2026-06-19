@@ -55,16 +55,28 @@ The main script is `gitlab-member-cli.ps1`. It requires PowerShell and accepts t
 .\gitlab-member-cli.ps1 -PrivateToken "glpat-xxx" -Operation "remove" -Group "acme" -MemberId 13624798 -DryRun
 ```
 
+**Show version:**
+```powershell
+.\gitlab-member-cli.ps1 -Version   # or -v
+```
+
+**Show help:**
+```powershell
+.\gitlab-member-cli.ps1 -Help   # or -h
+```
+
 **Key Parameters:**
-- `-PrivateToken`: GitLab Personal Access Token (required)
-- `-Group`: GitLab group path (mutually exclusive with `-Project`)
-- `-Project`: GitLab project path (mutually exclusive with `-Group`)
-- `-Operation`: Either "list", "set-expiry", or "remove" (required)
-- `-MemberUsername` or `-MemberId`: Identify the member (required for set-expiry and remove; optional for list with -Group)
-- `-ExpiryDate`: YYYY-MM-DD format (required for set-expiry)
+- `-PrivateToken` (`-t`, `-token`): GitLab Personal Access Token (required)
+- `-Group` (`-g`): GitLab group path (mutually exclusive with `-Project`)
+- `-Project` (`-p`): GitLab project path (mutually exclusive with `-Group`)
+- `-Operation` (`-o`): Either "list", "set-expiry", or "remove" (required)
+- `-MemberUsername` (`-u`, `-username`) or `-MemberId` (`-uid`, `-userid`): Identify the member (required for set-expiry and remove; optional for list with -Group)
+- `-ExpiryDate` (`-e`, `-expiry`): YYYY-MM-DD format (required for set-expiry)
 - `-ServerUrl`: GitLab API URL (defaults to "https://gitlab.com/api/v4")
-- `-IgnoreSubgroups`: Exclude nested subgroup projects when scanning user memberships (default: subgroups are included)
-- `-DryRun`: Preview what would be changed without making any API updates (set-expiry and remove)
+- `-IgnoreSubgroups` (`-i`): Exclude nested subgroup projects when scanning user memberships (default: subgroups are included)
+- `-DryRun` (`-dr`): Preview what would be changed without making any API updates (set-expiry and remove)
+- `-Version` (`-v`): Print the current version (`1.0.0`) and exit
+- `-Help` (`-h`): Print a usage summary and exit
 
 ## Architecture
 

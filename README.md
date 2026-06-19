@@ -97,20 +97,38 @@ cd gitlab-member-cli
 .\gitlab-member-cli.ps1 -PrivateToken "glpat-xxx" -Operation "remove" -Group "acme" -MemberId 13624799 -DryRun
 ```
 
+### Show version
+
+```powershell
+.\gitlab-member-cli.ps1 -Version
+# or
+.\gitlab-member-cli.ps1 -v
+```
+
+### Show help
+
+```powershell
+.\gitlab-member-cli.ps1 -Help
+# or
+.\gitlab-member-cli.ps1 -h
+```
+
 ## Parameters
 
-| Parameter           | Required      | Description                                                         | Default                     |
-| ------------------- | ------------- | ------------------------------------------------------------------- | --------------------------- |
-| `-PrivateToken`     | Yes           | GitLab Personal Access Token with API access                        | -                           |
-| `-Operation`        | Yes           | Operation type: `list`, `set-expiry`, or `remove`                   | -                           |
-| `-Group`            | Conditional†  | GitLab group path (e.g., `acme` or `acme/product-a`)    | -                           |
-| `-Project`          | Conditional†  | GitLab project path (e.g., `acme/product-a/MyProject`)  | -                           |
-| `-MemberUsername`   | Conditional*  | Username of the member to manage                                    | -                           |
-| `-MemberId`         | Conditional*  | User ID of the member to manage                                     | -                           |
-| `-ExpiryDate`       | Conditional** | Expiry date in YYYY-MM-DD format                                    | -                           |
-| `-ServerUrl`        | No            | GitLab API URL                                                      | `https://gitlab.com/api/v4` |
-| `-IgnoreSubgroups`  | No            | Exclude projects from nested subgroups when scanning memberships    | `false`                     |
-| `-DryRun`           | No            | Preview what would be changed without making any API updates        | `false`                     |
+| Parameter           | Alias(es)            | Required      | Description                                                         | Default                     |
+| ------------------- | -------------------- | ------------- | ------------------------------------------------------------------- | --------------------------- |
+| `-PrivateToken`     | `-t`, `-token`       | Yes           | GitLab Personal Access Token with API access                        | -                           |
+| `-Operation`        | `-o`                 | Yes           | Operation type: `list`, `set-expiry`, or `remove`                   | -                           |
+| `-Group`            | `-g`                 | Conditional†  | GitLab group path (e.g., `acme` or `acme/product-a`)               | -                           |
+| `-Project`          | `-p`                 | Conditional†  | GitLab project path (e.g., `acme/product-a/MyProject`)             | -                           |
+| `-MemberUsername`   | `-u`, `-username`    | Conditional*  | Username of the member to manage                                    | -                           |
+| `-MemberId`         | `-uid`, `-userid`    | Conditional*  | User ID of the member to manage                                     | -                           |
+| `-ExpiryDate`       | `-e`, `-expiry`      | Conditional** | Expiry date in YYYY-MM-DD format                                    | -                           |
+| `-ServerUrl`        | -                    | No            | GitLab API URL                                                      | `https://gitlab.com/api/v4` |
+| `-IgnoreSubgroups`  | `-i`                 | No            | Exclude projects from nested subgroups when scanning memberships    | `false`                     |
+| `-DryRun`           | `-dr`                | No            | Preview what would be changed without making any API updates        | `false`                     |
+| `-Version`          | `-v`                 | No            | Show version (`1.0.0`) and exit                                     | -                           |
+| `-Help`             | `-h`                 | No            | Show usage help and exit                                            | -                           |
 
 † Exactly one of `-Group` or `-Project` must be specified.  
 \* Required for `set-expiry` and `remove`; optional for `list` with `-Group` (omit to list all members).  

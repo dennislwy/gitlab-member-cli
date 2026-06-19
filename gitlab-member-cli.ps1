@@ -20,8 +20,14 @@
 .PARAMETER Project
     GitLab project path (e.g., 'acme/product-a/auth-service')
 
+.PARAMETER Version
+    Show the script version and exit. Alias: -v
+
+.PARAMETER Help
+    Show usage help and exit. Alias: -h
+
 .PARAMETER Operation
-    Operation to perform: 'list' or 'set-expiry'
+    Operation to perform: 'list', 'set-expiry', or 'remove'
 
 .PARAMETER MemberUsername
     Username of the member to manage (e.g., 'CalvinLee')
@@ -34,9 +40,6 @@
 
 .PARAMETER IgnoreSubgroups
     Exclude projects from nested subgroups when scanning user memberships. By default, subgroups are included.
-
-.PARAMETER IncludeSubgroups
-    Deprecated. Use -IgnoreSubgroups instead.
 
 .PARAMETER DryRun
     Preview what would be changed without making any API updates. Skips confirmation prompt.
@@ -76,58 +79,125 @@
 
 .EXAMPLE
     .\gitlab-member-cli.ps1 -PrivateToken "glpat-xxx" -Operation "remove" -Project "acme/product-a/auth-service" -MemberUsername "username"
+
+.EXAMPLE
+    .\gitlab-member-cli.ps1 -Version
+
+.EXAMPLE
+    .\gitlab-member-cli.ps1 -Help
 #>
 
-[CmdletBinding()]
+[CmdletBinding(DefaultParameterSetName = 'Default')]
 param(
-    [Parameter(Mandatory = $true, HelpMessage = "GitLab Personal Access Token")]
+    [Parameter(ParameterSetName = 'Version', Mandatory = $true)]
+    [Alias("v")]
+    [switch]$Version,
+
+    [Parameter(ParameterSetName = 'Help', Mandatory = $true)]
+    [Alias("h")]
+    [switch]$Help,
+
+    [Parameter(ParameterSetName = 'Default', Mandatory = $true, HelpMessage = "GitLab Personal Access Token")]
+    [Alias("t", "token")]
     [ValidateNotNullOrEmpty()]
     [string]$PrivateToken,
 
-    [Parameter(Mandatory = $false, HelpMessage = "GitLab group path (e.g., 'acme' or 'acme/product-a')")]
+    [Parameter(ParameterSetName = 'Default', Mandatory = $false, HelpMessage = "GitLab group path (e.g., 'acme' or 'acme/product-a')")]
+    [Alias("g")]
     [string]$Group,
 
-    [Parameter(Mandatory = $false, HelpMessage = "GitLab project path (e.g., 'acme/product-a/auth-service')")]
+    [Parameter(ParameterSetName = 'Default', Mandatory = $false, HelpMessage = "GitLab project path (e.g., 'acme/product-a/auth-service')")]
+    [Alias("p")]
     [string]$Project,
 
-    [Parameter(Mandatory = $true, HelpMessage = "Operation: 'list', 'set-expiry', or 'remove'")]
+    [Parameter(ParameterSetName = 'Default', Mandatory = $true, HelpMessage = "Operation: 'list', 'set-expiry', or 'remove'")]
+    [Alias("o")]
     [ValidateSet("list", "set-expiry", "remove")]
     [string]$Operation,
 
-    [Parameter(Mandatory = $false, HelpMessage = "Member username")]
+    [Parameter(ParameterSetName = 'Default', Mandatory = $false, HelpMessage = "Member username")]
+    [Alias("u", "username")]
     [string]$MemberUsername,
 
-    [Parameter(Mandatory = $false, HelpMessage = "Member user ID")]
+    [Parameter(ParameterSetName = 'Default', Mandatory = $false, HelpMessage = "Member user ID")]
+    [Alias("uid", "userid")]
     [int]$MemberId,
 
-    [Parameter(Mandatory = $false, HelpMessage = "Expiry date (YYYY-MM-DD)")]
+    [Parameter(ParameterSetName = 'Default', Mandatory = $false, HelpMessage = "Expiry date (YYYY-MM-DD)")]
+    [Alias("e", "expiry")]
     [ValidatePattern('^\d{4}-\d{2}-\d{2}$')]
     [string]$ExpiryDate,
 
-    [Parameter(Mandatory = $false, HelpMessage = "GitLab server URL")]
+    [Parameter(ParameterSetName = 'Default', Mandatory = $false, HelpMessage = "GitLab server URL")]
     [ValidateNotNullOrEmpty()]
     [string]$ServerUrl = "https://gitlab.com/api/v4",
 
-    [Parameter(Mandatory = $false, HelpMessage = "Exclude projects from nested subgroups (default: subgroups are included)")]
+    [Parameter(ParameterSetName = 'Default', Mandatory = $false, HelpMessage = "Exclude projects from nested subgroups (default: subgroups are included)")]
+    [Alias("i", "ignore-subgroups")]
     [switch]$IgnoreSubgroups,
 
-    [Parameter(Mandatory = $false, HelpMessage = "Deprecated: use -IgnoreSubgroups instead")]
-    [System.Nullable[bool]]$IncludeSubgroups,
-
-    [Parameter(Mandatory = $false, HelpMessage = "Preview changes without making any updates")]
+    [Parameter(ParameterSetName = 'Default', Mandatory = $false, HelpMessage = "Preview changes without making any updates")]
+    [Alias("dr")]
     [switch]$DryRun
 )
 
+$script:ScriptVersion = "1.0.0"
+
+if ($Version) {
+    Write-Host "gitlab-member-cli v$($script:ScriptVersion)"
+    exit 0
+}
+
+if ($Help) {
+    Write-Host @"
+gitlab-member-cli v$($script:ScriptVersion)
+Manage GitLab member expiration dates across groups and projects.
+
+USAGE:
+  .\gitlab-member-cli.ps1 -PrivateToken <token> -Operation <op> [options]
+
+OPERATIONS:
+  list        List members of a group or project
+  set-expiry  Set expiration date for a member
+  remove      Remove a member from a group or project
+
+TARGET (mutually exclusive):
+  -Group <path>      GitLab group path (e.g., 'acme' or 'acme/product-a')
+  -Project <path>    GitLab project path (e.g., 'acme/product-a/auth-service')
+
+MEMBER IDENTITY (one required for set-expiry and remove):
+  -MemberUsername <username>   Member username
+  -MemberId <id>               Member user ID
+
+OPTIONS:
+  -ExpiryDate <YYYY-MM-DD>     Expiry date (required for set-expiry)
+  -ServerUrl <url>             GitLab API URL (default: https://gitlab.com/api/v4)
+  -IgnoreSubgroups             Exclude nested subgroup projects
+  -DryRun                      Preview changes without applying them
+  -Version (-v)                Show version and exit
+  -Help (-h)                   Show this help and exit
+
+ALIASES:
+  -t / -token           -PrivateToken
+  -g                    -Group
+  -p                    -Project
+  -o                    -Operation
+  -u / -username        -MemberUsername
+  -uid / -userid        -MemberId
+  -e / -expiry          -ExpiryDate
+
+EXAMPLES:
+  .\gitlab-member-cli.ps1 -t "glpat-xxx" -o list -g "acme/product-a"
+  .\gitlab-member-cli.ps1 -t "glpat-xxx" -o list -p "acme/product-a/auth-service"
+  .\gitlab-member-cli.ps1 -t "glpat-xxx" -o list -g "acme" -u "username"
+  .\gitlab-member-cli.ps1 -t "glpat-xxx" -o set-expiry -g "acme" -uid 13624798 -e "2026-03-31"
+  .\gitlab-member-cli.ps1 -t "glpat-xxx" -o remove -g "acme" -u "username" -DryRun
+"@
+    exit 0
+}
+
 # Trim trailing slashes from ServerUrl
 $ServerUrl = $ServerUrl.TrimEnd('/')
-
-# Handle deprecated -IncludeSubgroups parameter
-if ($null -ne $IncludeSubgroups) {
-    Write-Warning "-IncludeSubgroups is deprecated. Use -IgnoreSubgroups instead."
-    if (-not $IncludeSubgroups) {
-        $IgnoreSubgroups = $true
-    }
-}
 
 # Color scheme
 $script:ColorScheme = @{
@@ -1234,9 +1304,9 @@ try {
                 # A project is "covered" if its path starts with one of the removed group paths.
                 $removedGroupPaths = $groupMemberships | ForEach-Object { $_.GroupPath }
                 $orphanMemberships = @($memberships | Where-Object {
-                    $projectPath = $_.ProjectPath
-                    -not ($removedGroupPaths | Where-Object { $projectPath.StartsWith($_ + "/") })
-                })
+                        $projectPath = $_.ProjectPath
+                        -not ($removedGroupPaths | Where-Object { $projectPath.StartsWith($_ + "/") })
+                    })
 
                 if ($DryRun) {
                     # In dry-run, show affected project memberships (consistent with list output)
